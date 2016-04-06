@@ -2,9 +2,11 @@ import logging
 import requests
 import os
 import sys
+import boto
 
 from bs4 import BeautifulSoup
 from PIL import Image
+from StringIO import StringIO
 
 
 logger = logging.getLogger('SuitsSupply WebScraper')
@@ -22,12 +24,20 @@ class SuitsSupplyScraper(object):
 	url = None
 	page = None
 	soup = None
+	out_img = None
+	conn = None
+	bucket = None
 	
-
 
 	def __init__(self, url):
 		logger.info("Start receiving an url to parse")
 		self.url = url
+
+		logger.info("Connecting on Amazon S3")
+		self.conn = boto.connect_s3()
+
+		logger.info("Creating a bucket")
+		self.bucket = self.conn.create_bucket('images')
 
 	def open_url(self):
 		logger.info("Open the url received")
@@ -44,21 +54,39 @@ class SuitsSupplyScraper(object):
 		self.soup = BeautifulSoup(html_doc, 'html.parser')
 		logger.info("End")
 
-	def save_images(self):
+	def open_images(self):
 		logger.info("Saving images on AWS3")
 		logger.info("Working")
 
-		image_tags = [img for img in self.soup.findAll('img')]
-		logger.debug("Images: %s", str(image_tags))
-		
+		image_tags = [img for img in self.soup.findAll('img')]		
 		image_links = [img.get('src') for img in image_tags]
-		logger.debug("\nImage links: %s", str(image_links))
+		image_bytes = [requests.get("http:" + link) for link in image_links]
+		self.out_img = [dict(content=Image.open(StringIO(img.content)), 
+			type=img.headers['Content-type'].split('/')[1]) for img in image_bytes]
 
-		for link in image_links:
-			image = requests.get("http:" + link)
+		logger.info("End")
+
+	def push_items_on_s3(self):
+
+		cont = 0
+		for img in self.out_img:
+			aux = StringIO()
+			img['content'].save(aux, img['type'].upper())
+
+			#Creating a key
+			logger.info("Creating a key")
+			key = self.bucket.new_key('image-{0}.{1}'.format(cont, img['type']))
+
+			#Setting the key content
+			logger.info("Setting a key content")
+			key.set_contents_from_string(aux.getvalue())
+
+			#Set the access control list (ACL)
+			logger.info('Making the ACL public')
+			key.set_acl('public-read')
+			cont+=1
 			
 		
-		logger.info("End")
 		
 	def save_videos(self):
 		logger.info("Saving videos on AWS3")
@@ -70,15 +98,32 @@ class SuitsSupplyScraper(object):
 		logger.info("Working")
 		logger.info("End")
 		
-		
+	
+
+def proccess(s):
+
+	try:
+		logger.info("Proccessing operations.")
+		s.open_url()
+		s.build_soup_objects()
+		s.open_images()
+		s.push_items_on_s3()
+
+		return True
+
+	except Exception as e:
+		logger.error(e)
+
+
 
 def main():
 	url = sys.argv[1]
+	logger.debug("URL given: %s", url)
 
-	s = SuitsSupplyScraper(url)
-	s.open_url()
-	s.build_soup_objects()
-	s.save_images()
+	obj = SuitsSupplyScraper(url)
+	proccess(obj)
+
+	
 
 
 if __name__ == '__main__':
