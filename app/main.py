@@ -24,7 +24,7 @@ class SuitsSupplyScraper(object):
 	url = None
 	page = None
 	soup = None
-	out_img = None
+	out = None
 	conn = None
 	bucket = None
 	
@@ -37,7 +37,7 @@ class SuitsSupplyScraper(object):
 		self.conn = boto.connect_s3()
 
 		logger.info("Creating a bucket")
-		self.bucket = self.conn.create_bucket('images')
+		self.bucket = self.conn.create_bucket('as3_suistsuply_test')
 
 	def open_url(self):
 		logger.info("Open the url received")
@@ -61,21 +61,38 @@ class SuitsSupplyScraper(object):
 		image_tags = [img for img in self.soup.findAll('img')]		
 		image_links = [img.get('src') for img in image_tags]
 		image_bytes = [requests.get("http:" + link) for link in image_links]
-		self.out_img = [dict(content=Image.open(StringIO(img.content)), 
+		self.out = [dict(content=Image.open(StringIO(img.content)), 
 			type=img.headers['Content-type'].split('/')[1]) for img in image_bytes]
+
+		logger.info("End")
+			
+	def open_videos(self):
+		logger.info("Saving videos on AWS3")
+		logger.info("Working")
+		logger.info("End")
+		
+	def open_documents(self):
+		logger.info("Saving documents on AWS3")
+		logger.info("Working")
+
+		doc_tags = [doc for doc in self.soup.findAll('a')]		
+		document_links = [doc.get('href') for doc in documments_tags]
+		document_bytes = [requests.get("http:" + link) for link in document_links]
+		self.out = [dict(content=StringIO(doc.content)), 
+			type=doc.headers['Content-type'].split('/')[1]) for doc in document_bytes]
 
 		logger.info("End")
 
 	def push_items_on_s3(self):
 
 		cont = 0
-		for img in self.out_img:
+		for f in self.out:
 			aux = StringIO()
-			img['content'].save(aux, img['type'].upper())
+			f['content'].save(aux, f['type'].upper())
 
 			#Creating a key
 			logger.info("Creating a key")
-			key = self.bucket.new_key('image-{0}.{1}'.format(cont, img['type']))
+			key = self.bucket.new_key('file-{0}.{1}'.format(cont, f['type']))
 
 			#Setting the key content
 			logger.info("Setting a key content")
@@ -85,18 +102,6 @@ class SuitsSupplyScraper(object):
 			logger.info('Making the ACL public')
 			key.set_acl('public-read')
 			cont+=1
-			
-		
-		
-	def save_videos(self):
-		logger.info("Saving videos on AWS3")
-		logger.info("Working")
-		logger.info("End")
-		
-	def save_documents(self):
-		logger.info("Saving documents on AWS3")
-		logger.info("Working")
-		logger.info("End")
 		
 	
 
