@@ -19,7 +19,7 @@ console_handler.setLevel(logging.DEBUG)
 
 logger.addHandler(console_handler)
 
-
+TYPES = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt']
 class SuitsSupplyScraper(object):
 	url = None
 	page = None
@@ -75,11 +75,30 @@ class SuitsSupplyScraper(object):
 		logger.info("Saving documents on AWS3")
 		logger.info("Working")
 
-		doc_tags = [doc for doc in self.soup.findAll('a')]		
-		document_links = [doc.get('href') for doc in documments_tags]
-		document_bytes = [requests.get("http:" + link) for link in document_links]
-		self.out = [dict(content=StringIO(doc.content)), 
-			type=doc.headers['Content-type'].split('/')[1]) for doc in document_bytes]
+		documents_tags = [doc for doc in self.soup.findAll('a')]		
+		#logger.debug(documents_tags)
+
+		document_links = [doc.get('href') for doc in documents_tags]
+		logger.debug(document_links)
+
+		# document_bytes = [requests.get("http:" + link) for link in document_links]
+
+		for link in document_links:
+			if link is not None:
+				#doc_type = str(link.split('/')[-1].split('.')[-1])
+				scheme = str(link.split('/')[0])
+				logger.debug(scheme)
+				#if doc_type != 'html':
+				logger.debug(link)
+				if scheme == '':
+					pass
+					#r = requests.get("http:" + link)
+					#logger.debug(r.headers['Content-type'])
+					#logger.debug(link)
+					#logger.debug(doc_type)
+
+		#self.out = [dict(content=StringIO(doc.content), 
+			#type=doc.headers['Content-type'].split('/')[1]) for doc in document_bytes]
 
 		logger.info("End")
 
@@ -111,8 +130,10 @@ def proccess(s):
 		logger.info("Proccessing operations.")
 		s.open_url()
 		s.build_soup_objects()
-		s.open_images()
-		s.push_items_on_s3()
+		# s.open_images()
+		# s.push_items_on_s3()
+
+		s.open_documents()
 
 		return True
 
